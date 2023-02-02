@@ -45,6 +45,7 @@ def main(stdscr):
 
         menu_width = int((1 / 3) * cols)
         editor_width = cols - menu_width
+        
         stdscr.addstr(0, 0, TL + HL * (menu_width - 2) + TR)
         stdscr.addstr(0, 2, " CeaseNotes ")
         stdscr.addstr(0, menu_width, TL + HL * (editor_width - 2) + TR)
