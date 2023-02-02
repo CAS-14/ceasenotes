@@ -11,7 +11,7 @@ BL = "\u2514"
 BR = "\u2518"
 
 MIN_WIDTH = 48
-MIN_HEIGHT = 6
+MIN_HEIGHT = 7
 
 con = sqlite3.connect("notes.db")
 cur = con.cursor()
