@@ -21,6 +21,8 @@ if not tables:
     cur.execute("CREATE TABLE notes (id INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL, created INTEGER NOT NULL, edited INTEGER NOT NULL, content TEXT NOT NULL)")
     con.commit()
 
+# INSERT INTO notes (name, created, edited, content) VALUES ();
+
 def main(stdscr):
     curses.curs_set(0)
     
@@ -37,6 +39,7 @@ def main(stdscr):
             return f"Terminal must be at least {MIN_WIDTH} wide by {MIN_HEIGHT} high!"
 
         note_names = cur.execute("SELECT name FROM notes ORDER BY edited DESC").fetchall()
+        note_names = [name[0] for name in note_names]
 
         if len(note_names) > 0:
             active_title = note_names[note_active]
@@ -54,8 +57,6 @@ def main(stdscr):
             stdscr.addstr(0, menu_width + 2, " " + active_title + " ")
         
         else:
-            note_names = ["John", "The World", "I like Food", "Dingleton", "MYLIFEASAMOVIESTAR", "the final meal", "Notes on song", "lyrics2"]
-
             for name in note_names:
                 place_y = random.randint(1, rows - 2)
                 place_x = random.randint(menu_width + 1, cols - (2 + len(name)))
@@ -85,22 +86,57 @@ def main(stdscr):
                 stdscr.addstr(menu_index + 1, 1, menu_items[menu_index], style)
 
         elif mode == "askclose":
-            ask_y = int((rows - 2) / 2)
+            y_center = int((rows - 2) / 2)
             x_center = int((menu_width - 2) / 2)
-            stdscr.addstr(ask_y, x_center - 5, "Press ENTER")
-            stdscr.addstr(ask_y + 1, x_center - 3, "to exit")
+            stdscr.addstr(y_center, x_center - 5, "Press ENTER")
+            stdscr.addstr(y_center + 1, x_center - 3, "to exit")
 
-        elif mode in ["list", "note"]:
-            for note_index in range(len(note_names)):
-                if note_active == note_index:
-                    if mode == "list":
-                        style = curses.A_REVERSE
+        elif mode in ["list", "note", "delete", "nonotes"]:
+            if note_names and mode != "nonotes":
+                for note_index in range(len(note_names)):
+                    if note_active == note_index:
+                        content = cur.execute(
+                            "SELECT content FROM notes WHERE name = ?",
+                            (note_names[note_index],)
+                        ).fetchone()[0]
+
+                        words = content.split(" ")
+
+                        line_length = 0
+                        row = 1
+                        i = 0
+                        while i < len(words) - 1:
+                            if line_length == 0:
+                                stdscr.addstr(row, menu_width + 1, words[i] + " ")
+                                i += 1
+                                line_length += len(words[i] + " ")
+
+                            else:
+                                if line_length + len(words[i]) > editor_width:
+                                    row += 1
+                                    line_length = 0
+                                else:     
+                                    stdscr.addstr(row, menu_width + line_length + 1, words[i] + " ")
+                                    i += 1
+                                    line_length += len(words[i] + " ")
+
+                        if mode != "note":
+                            style = curses.A_REVERSE
+                            
+                        else:
+                            style = curses.A_STANDOUT | curses.A_DIM
+
                     else:
-                        style = curses.A_STANDOUT | curses.A_DIM
-                else:
-                    style = curses.A_NORMAL
+                        style = curses.A_NORMAL
 
-                stdscr.addstr(note_index + 1, 1, note_names[note_index], style)
+                    stdscr.addstr(note_index + 1, 1, note_names[note_index], style)
+
+            else:
+                y_center = int((rows - 2) / 2)
+                x_center = int((menu_width - 2) / 2)
+                stdscr.addstr(y_center, x_center - 6, "No notes yet!")
+                stdscr.addstr(y_center + 1, x_center - 5, "Press ENTER")
+                mode = "nonotes"
 
         else:
             return("Error: Unknown mode")
@@ -147,14 +183,18 @@ def main(stdscr):
         elif mode == "note":
             if key == 27:
                 mode = "list"
-            else:
-                pass
 
         elif mode == "askclose":
             if key in [curses.KEY_ENTER, 10, 13]:
                 break
             else:
                 mode = "list"
+
+        elif mode == "nonotes":
+            if key in [curses.KEY_ENTER, 10, 13]:
+                mode = "menu"
+            else:
+                pass
 
 if __name__ == "__main__":
     os.environ.setdefault("ESCDELAY", "25")
