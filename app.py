@@ -30,6 +30,7 @@ def main(stdscr):
     note_active = 0
     menu_items = ["View/edit", "Create", "Delete", "Settings", "Quit"]
     menu_active = 0
+    add_char = None
 
     while True:
         stdscr.clear()
@@ -105,20 +106,23 @@ def main(stdscr):
                         line_length = 0
                         row = 1
                         i = 0
-                        while i < len(words) - 1:
-                            if line_length == 0:
-                                stdscr.addstr(row, menu_width + 1, words[i] + " ")
-                                i += 1
-                                line_length += len(words[i] + " ")
+                        while i < len(words):
+                            added_part = words[i]
 
+                            if i < len(words) - 1:
+                                added_part += " "
+
+                            elif i == len(words) - 1 and mode == "note" and add_char:
+                                curses.curs_set(1)
+                                added_part += add_char
+
+                            if line_length + len(added_part) > editor_width - 2:
+                                row += 1
+                                line_length = 0
                             else:
-                                if line_length + len(words[i]) > editor_width:
-                                    row += 1
-                                    line_length = 0
-                                else:     
-                                    stdscr.addstr(row, menu_width + line_length + 1, words[i] + " ")
-                                    i += 1
-                                    line_length += len(words[i] + " ")
+                                stdscr.addstr(row, menu_width + line_length + 1, added_part)
+                                i += 1
+                                line_length += len(added_part)
 
                         if mode != "note":
                             style = curses.A_REVERSE
@@ -126,10 +130,22 @@ def main(stdscr):
                         else:
                             style = curses.A_STANDOUT | curses.A_DIM
 
+                        if mode == "note" and add_char:
+                            content += add_char
+                            cur.execute(
+                                "UPDATE notes SET content = ? WHERE name = ?",
+                                (content, note_names[note_index])
+                            )
+                            add_char = None
+                            con.commit()
+
                     else:
                         style = curses.A_NORMAL
 
-                    stdscr.addstr(note_index + 1, 1, note_names[note_index], style)
+                    name = note_names[note_index]
+                    if len(name) > menu_width - 2:
+                        name = name[:(menu_width - 5)] + "..."
+                    stdscr.addstr(note_index + 1, 1, name, style)
 
             else:
                 y_center = int((rows - 2) / 2)
@@ -155,15 +171,9 @@ def main(stdscr):
                 if menu_active < 0:
                     menu_active = len(menu_items) - 1
             elif key in [curses.KEY_ENTER, 10, 13]:
-                if menu_active == 0:
-                    mode = "list"
-                elif menu_active == 1:
-                    mode = "create"
-                elif menu_active == 2:
-                    mode = "delete"
-                elif menu_active == 3:
-                    mode = "settings"
-                elif menu_active == 4:
+                if 0 <= menu_active <= 3:
+                    mode = ["list", "create", "delete", "settings"][menu_active]
+                else:
                     break
 
         elif mode == "list":
@@ -182,7 +192,11 @@ def main(stdscr):
 
         elif mode == "note":
             if key == 27:
+                curses.curs_set(0)
                 mode = "list"
+
+            else:
+                add_char = chr(key)
 
         elif mode == "askclose":
             if key in [curses.KEY_ENTER, 10, 13]:
