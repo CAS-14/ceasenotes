@@ -31,6 +31,7 @@ def main(stdscr):
     menu_items = ["View/edit", "Create", "Delete", "Settings", "Quit"]
     menu_active = 0
     add_char = None
+    added_end_position = None
 
     while True:
         stdscr.clear()
@@ -42,7 +43,7 @@ def main(stdscr):
         note_names = cur.execute("SELECT name FROM notes ORDER BY edited DESC").fetchall()
         note_names = [name[0] for name in note_names]
 
-        if len(note_names) > 0:
+        if len(note_names) > 0 and note_active >= 0:
             active_title = note_names[note_active]
         else:
             active_title = None
@@ -50,11 +51,13 @@ def main(stdscr):
         menu_width = int((1 / 3) * cols)
         editor_width = cols - menu_width
         
+        # 1. render window edges
+
         stdscr.addstr(0, 0, TL + HL * (menu_width - 2) + TR)
         stdscr.addstr(0, 2, " CeaseNotes ")
         stdscr.addstr(0, menu_width, TL + HL * (editor_width - 2) + TR)
         
-        if active_title:
+        if active_title and mode != "menu":
             stdscr.addstr(0, menu_width + 2, " " + active_title + " ")
         
         else:
@@ -76,22 +79,24 @@ def main(stdscr):
         except:
             pass
 
+        # render action menu
         if mode == "menu":
             for menu_index in range(len(menu_items)):
                 if menu_active == menu_index:
                     style = curses.A_REVERSE
-
                 else:
                     style = curses.A_NORMAL
 
                 stdscr.addstr(menu_index + 1, 1, menu_items[menu_index], style)
 
+        # ask before exiting
         elif mode == "askclose":
             y_center = int((rows - 2) / 2)
             x_center = int((menu_width - 2) / 2)
             stdscr.addstr(y_center, x_center - 5, "Press ENTER")
             stdscr.addstr(y_center + 1, x_center - 3, "to exit")
 
+        # all modes which show notes, besides nonotes
         elif mode in ["list", "note", "delete", "nonotes"]:
             if note_names and mode != "nonotes":
                 for note_index in range(len(note_names)):
@@ -101,8 +106,8 @@ def main(stdscr):
                             (note_names[note_index],)
                         ).fetchone()[0]
 
+                        # place note content in viewer/editor
                         words = content.split(" ")
-
                         line_length = 0
                         row = 1
                         i = 0
@@ -115,6 +120,7 @@ def main(stdscr):
                             elif i == len(words) - 1 and mode == "note" and add_char:
                                 curses.curs_set(1)
                                 added_part += add_char
+                                
 
                             if line_length + len(added_part) > editor_width - 2:
                                 row += 1
@@ -123,13 +129,17 @@ def main(stdscr):
                                 stdscr.addstr(row, menu_width + line_length + 1, added_part)
                                 i += 1
                                 line_length += len(added_part)
+                                added_end_position = stdscr.getyx()
 
-                        if mode != "note":
-                            style = curses.A_REVERSE
-                            
-                        else:
+                        # set style of selected note in menu
+                        if mode == "note":
+                            # TODO: put curs_set and movement logic here
                             style = curses.A_STANDOUT | curses.A_DIM
 
+                        else:
+                            style = curses.A_REVERSE
+
+                        # write new character to note
                         if mode == "note" and add_char:
                             content += add_char
                             cur.execute(
@@ -146,6 +156,10 @@ def main(stdscr):
                     if len(name) > menu_width - 2:
                         name = name[:(menu_width - 5)] + "..."
                     stdscr.addstr(note_index + 1, 1, name, style)
+
+                    if added_end_position:
+                        stdscr.move(*added_end_position)
+                        added_end_position = None
 
             else:
                 y_center = int((rows - 2) / 2)
