@@ -2,6 +2,19 @@ import curses
 import os
 import sqlite3
 import random
+from datetime import datetime
+
+LOGGING = True
+
+if LOGGING:
+    with open("cn.log", "w") as f:
+        f.write("")
+
+def log(message: str):
+    if LOGGING:
+        message = f"[{datetime.now().strftime('%H:%M:%S')}] {message}"
+        with open("cn.log", "a") as f:
+            f.write(message)
 
 HL = "\u2500"
 VL = "\u2502"
@@ -32,6 +45,7 @@ def main(stdscr):
     menu_active = 0
     add_char = None
     added_end_position = None
+    skip_now = False
 
     while True:
         stdscr.clear()
@@ -51,7 +65,9 @@ def main(stdscr):
         menu_width = int((1 / 3) * cols)
         editor_width = cols - menu_width
         
-        # 1. render window edges
+
+
+        # EDGE RENDERING
 
         stdscr.addstr(0, 0, TL + HL * (menu_width - 2) + TR)
         stdscr.addstr(0, 2, " CeaseNotes ")
@@ -79,6 +95,10 @@ def main(stdscr):
         except:
             pass
 
+
+
+        # MODE ACTIONS
+
         # render action menu
         if mode == "menu":
             for menu_index in range(len(menu_items)):
@@ -97,7 +117,9 @@ def main(stdscr):
             stdscr.addstr(y_center + 1, x_center - 3, "to exit")
 
         # all modes which show notes, besides nonotes
-        elif mode in ["list", "note", "delete", "nonotes"]:
+        elif mode in ["list", "note", "delete", "nonotes", "create"]:
+
+            # render notes list
             if note_names and mode != "nonotes":
                 for note_index in range(len(note_names)):
                     if note_active == note_index:
@@ -118,7 +140,6 @@ def main(stdscr):
                                 added_part += " "
 
                             elif i == len(words) - 1 and mode == "note" and add_char:
-                                curses.curs_set(1)
                                 added_part += add_char
                                 
 
@@ -133,7 +154,8 @@ def main(stdscr):
 
                         # set style of selected note in menu
                         if mode == "note":
-                            # TODO: put curs_set and movement logic here
+                            # TODO curs set stuff
+                            curses.curs_set(1)
                             style = curses.A_STANDOUT | curses.A_DIM
 
                         else:
@@ -168,10 +190,53 @@ def main(stdscr):
                 stdscr.addstr(y_center + 1, x_center - 5, "Press ENTER")
                 mode = "nonotes"
 
-        else:
-            return("Error: Unknown mode")
+        # create new note
+        elif mode == "create":
+            stdscr.addstr(0, menu_width + 2, " name: ", curses.A_DIM)
+            curses.curs_set(2)
+            title = ""
+            cont = None
+            
+            while True:
+                stdscr.addstr(0, menu_width + 9, title)
+                stdscr.addstr(0, menu_width + 9 + len(title), "  ")
+                
+                key = stdscr.getch()
+                if key == 27:
+                    cont = False
+                    break
+                elif key == "\n":
+                    cont = True
+                    break
+                else:
+                    title += chr(key)
 
-        key = stdscr.getch()
+            curses.curs_set(0)
+
+            if not cont:
+                mode = "menu"
+
+            else:
+                # create the note
+                now = datetime.timestamp(datetime.now())
+                cur.execute(
+                    "INSERT INTO notes (name, created, edited, content) VALUES (?, ?, ?, ?);",
+                    (title, now, now, "")
+                )
+                note_active = 0
+                mode = "note"
+        
+        else:
+            return("Error: Unknown mode!")
+
+
+
+        # KEY HANDLING
+
+        if skip_now:
+            skip_now = False
+        else:
+            key = stdscr.getch()
 
         if mode == "menu":
             if key == 27:
@@ -207,7 +272,7 @@ def main(stdscr):
         elif mode == "note":
             if key == 27:
                 curses.curs_set(0)
-                mode = "list"
+                mode = "list" if mode == "note" else "menu"
 
             else:
                 add_char = chr(key)
@@ -223,6 +288,8 @@ def main(stdscr):
                 mode = "menu"
             else:
                 pass
+
+
 
 if __name__ == "__main__":
     os.environ.setdefault("ESCDELAY", "25")
